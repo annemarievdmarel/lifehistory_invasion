@@ -1,0 +1,854 @@
+---
+title: role of life history traits and introduction effort in understanding invasion success
+author: "Annemarie van der Marel"
+date: "12/08/2020"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Exploring the role of life history traits and introduction effort in understanding invasion success in mammals: A case study of Barbary ground squirrels
+Annemarie van der Marel a, Jane M. Waterman a, Marta López-Darias b 
+a Department of Biological Sciences, University of Manitoba, Winnipeg, Canada
+b Island Ecology and Evolution Research Group, Instituto de Productos Naturales y Agrobiología (IPNA-CSIC), La Laguna, Tenerife, Canary Islands, Spain
+
+
+AIM 1: we investigated life history traits of the Barbary ground squirrel, _Atlantoxerus getulus_, a species with a remarkablye low introduction effort (Machado, 1979), which will contribute to our understanding of invasion success when introduction efforts are minimal and will be essential to plan for future conservation programs on this species. 
+
+AIM 2: we studied whether the Barbary ground squirrel's exceptional invasion success (despite low introduction effort) is due to a very fast life history profile through a comparison of these traits to other successfully invaded mammals using the dataset provided by Capellini et al. (2015). 
+
+AIM 3: we examined whether number of founders and/or a fast life history influences invasion success of squirrels using the dataset provided by Bertolino (2009).  
+
+# Load libraries
+```{r, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(effsize)
+library(survival)
+library(survminer)
+library(dplyr)
+library(janitor)
+library(ggpubr)
+library(lme4)
+library(MuMIn)
+library(piecewiseSEM)
+library(adephylo)
+library(beanplot)
+library(ggpubr)
+```
+
+
+# AIM 1: life history traits Barbary ground squirrels
+
+For the following measurements, the data are available upon reasonable request from the authors:
+ - Duration breeding season
+ - duration that males are scrotal
+ - Gestation length
+ - Lactation length
+ - Weaning length
+ - adult body mass
+
+## age at first birth
+```{r}
+age<-read.csv("age at first birth.csv", sep = ";")
+head(age)
+
+# model diagnostics
+ggplot(data = age, aes(sample = age)) +
+  stat_qq() +
+  stat_qq_line()
+
+ggplot(age, aes(x = fromdate, y = age)) +
+  geom_point() +
+  stat_smooth(method = "lm")
+m <- lm(age~fromdate, data = age)
+summary(m)
+d <- data.frame(residuals = residuals(m),         # Residuals
+                std_residuals = rstudent(m), # Studentized Residuals
+                fitted = fitted(m),          # Fitted values
+                cooks = cooks.distance(m))   # Cook's D
+d <- mutate(d, observation = 1:nrow(d))           # Observation number
+
+# histogram of residuals
+ggplot(data = d, aes(x = std_residuals)) +
+  geom_histogram(bins = 10)
+# Check for Normality: QQ Normality plot of residuals
+ggplot(data = d, aes(sample = std_residuals)) +
+  stat_qq() +
+  stat_qq_line()
+# Check heteroscedasticity or constant variance
+ggplot(d, aes(x = fitted, y = std_residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0)
+# Cook's D
+ggplot(d, aes(x = observation, y = cooks)) +
+  geom_point() +
+  geom_hline(yintercept = 1, linetype = "dotted") +
+  geom_hline(yintercept = 4/nrow(d), linetype = "dashed")
+# outliers
+d_outliers <- filter(d, cooks > 4/nrow(d))
+d_outliers
+age[c(1), ] # keep
+age[c(8), ] # keep
+age[c(18), ] # keep
+# opt for nonparametric test
+
+wilcox.test(age~ fromdate, data=age) # all females
+
+# females with known date of birth/emergence
+age1<-dplyr::filter(age, certainty=="certain")
+wilcox.test(age~ fromdate, data=age1)
+
+# mean and SE
+agesum<-dplyr::select(age1, fromdate, age) %>%
+  group_by(fromdate) %>%
+  summarise_all(list(mean, sd, n)) %>%
+  mutate(se=sd/sqrt(n))
+
+mean(age1$age)
+sd(age1$age)/sqrt(length(age1$age))
+
+agesum
+# clean environment
+rm(age1, d_outliers, d, age, m )
+```
+
+## Maternal success rate 
+Proportion of females that successfully raised their litter to emergence
+
+```{r}
+success<-c(28, 44, 63)
+nonsuccess<-c(11, (58-44), (80-63))
+rows<-3
+m<-matrix(c(success, nonsuccess),nrow=rows)
+rownames(m) = c("2014", "2015", "2016")     #  Naming the rows and
+colnames(m) = c("success", "nonsuccess")    #  columns is optional
+m
+
+chisq.test(m)
+
+# clean environment
+rm(success, nonsuccess, rows, m)
+
+```
+
+## Litter size
+```{r}
+ls<-read.csv("litter size.csv", sep = ";")
+head(ls)
+
+# model diagnostics
+ggplot(data = ls, aes(sample = litter.size)) +
+  stat_qq() +
+  stat_qq_line()
+
+ggplot(ls, aes(x = year, y = litter.size)) +
+  geom_point() +
+  stat_smooth(method = "lm")
+m <- lm(litter.size~year, data = ls)
+summary(m)
+d <- data.frame(residuals = residuals(m),         # Residuals
+                     std_residuals = rstudent(m), # Studentized Residuals
+                     fitted = fitted(m),          # Fitted values
+                     cooks = cooks.distance(m))   # Cook's D
+d <- mutate(d, observation = 1:nrow(d))           # Observation number
+
+# histogram of residuals
+ggplot(data = d, aes(x = std_residuals)) +
+  geom_histogram(bins = 10)
+# Check for Normality: QQ Normality plot of residuals
+ggplot(data = d, aes(sample = std_residuals)) +
+  stat_qq() +
+  stat_qq_line()
+# Check heteroscedasticity or constant variance
+ggplot(d, aes(x = fitted, y = std_residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0)
+# Cook's D
+ggplot(d, aes(x = observation, y = cooks)) +
+  geom_point() +
+  geom_hline(yintercept = 1, linetype = "dotted") +
+  geom_hline(yintercept = 4/nrow(d), linetype = "dashed")
+# outliers
+d_outliers <- filter(d, cooks > 4/nrow(d))
+d_outliers
+ls[c(16), ] # correct datapoint
+# problem with heteroscedasticity --> nonparametric test
+
+kruskal.test(litter.size~year, data = ls)
+
+lssum<-group_by(ls, year) %>%
+  summarise_all(funs(mean, sd, length)) %>%
+  mutate(se=sd/sqrt(length))
+sd(ls$litter.size)/sqrt(length(ls$litter.size))
+lssum
+
+# clean environment
+rm(d_outliers, d, m, ls)
+```
+
+## litter sex ratio
+Sex ratio data are best expressed as proportions (sex ratio = males/(males + females))
+deviations are expected to conform to a binomial distribution
+from
+Wilson, K., & Hardy, I. (2002). Statistical analysis of sex ratios: An introduction. In I. Hardy (Ed.), Sex Ratios: Concepts and Research Methods (pp. 48-92). Cambridge: Cambridge University Press. doi:10.1017/CBO9780511542053.004
+```{r}
+jsr<-read.csv("juvenile sex ratio.csv", sep = ";")
+# quick check
+t.test(jsr$male.juveniles, jsr$female.juveniles) 
+t.test(jsr$male.juveniles, jsr$female.juveniles, paired = TRUE)
+
+# differ across years?
+jsr<-select(jsr, year, sex, juveniles)
+head(jsr)
+
+jsrsum<-group_by(jsr, year, sex) %>%
+  summarise(sum=sum(juveniles))
+
+# per year
+binom.test(c(15,15),30, p=0.5) # 2014
+binom.test(c(18,20),38, p=0.5) # 2015
+binom.test(c(33,30),63, p=0.5) # 2016
+
+males<-c(15, 18, 33)
+females<-c(15, 20, 30)
+
+rows=3
+m<-matrix(c(males, females),nrow=rows)
+rownames(m) = c("2014", "2015", "2016")      # Naming the rows and
+colnames(m) = c("males", "females")          # columns is optional
+m
+
+chisq.test(m)
+
+# overall 
+binom.test(c(66,65),131, p=0.5)
+
+rm(males, females, m, jsrsum, jsr)
+```
+
+## juvenile mortality
+does juvenile mortality differ per year?
+```{r}
+# Juvenile mortality (%)	19.4	50.3	49.4
+# emerged juveniles 112, 161, 166
+
+0.194*112 # 2014
+0.503*161 # 2015
+0.494*166 # 2016
+
+surv<-c((112-22), (161-81), (166-82))
+nonsurv<-c(22, 81, 82)
+
+m<-matrix(c(surv, nonsurv),nrow=rows)
+rownames(m) = c("2014", "2015", "2016")          # Naming the rows and
+colnames(m) = c("survived", "not-survived")   #  columns is optional
+m
+
+chisq.test(m)
+# df= (row-1)(column-1)
+(3-1)*(2-1)
+
+rm(surv, nonsurv, m)
+```
+
+## adult lifespan and survival rate
+```{r}
+# life span
+age <- c(1,2,3,4)
+certain <-	c(30,	17,	3,	0)
+uncertain	<- c(127,	54,	35,	14)
+df<-cbind.data.frame(age, certain, uncertain)
+
+ggplot(df, aes(x=age, y = certain)) +
+  geom_line() +
+  labs(y ="survivors") +
+  theme_classic() +
+  geom_line(aes(x=age, y=uncertain), linetype=2)
+
+rm(age, certain, uncertain, df)
+
+# survival
+#https://www.datacamp.com/community/tutorials/survival-analysis-R
+# Load required packages
+library(survival)
+library(survminer)
+library(dplyr)
+
+survival<-read.csv("Aget_survival.csv", sep = ";")
+s<-filter(survival, survival!=0)
+
+s<-janitor::clean_names(s)
+# age = certain and uncertain with +
+# survival = uncertain age not censored
+# age_censored (1=certain age, 0=uncertain age)
+
+hist(s$survival)
+# Fit survival data using the Kaplan-Meier method
+surv_object <- Surv(time = s$survival, event = s$age_censored)
+surv_object 
+
+fit <- survfit(surv_object~1, data = s)
+summary(fit)
+ggsurvplot(fit, data = s, pval = TRUE)
+
+fit1 <- survfit(surv_object~sex, data = s)
+summary(fit1)
+ggsurvplot(fit1, data = s, pval = TRUE)
+```
+
+
+# AIM 2: comparison life history traits to other mammals 
+
+Where do Barbaries fit with life history traits in comparison to other mammals?
+```{r}
+# dataset Capellini et al. 2015 ----
+data_cap<-read.csv("cappelini.csv", sep = ";") # successfully spread mammals
+data_cap_Ag <- data_cap %>% 
+  filter(Binomial!="Atlantoxerus_getulus")
+head(data_cap)
+
+df.cap<-data_cap_Ag
+df.cap$species <- factor(df.cap$family, levels= c("all","sciuridae"),
+  labels = c("mammals", "only squirrels"))
+
+df.median<- df.cap %>% group_by(family)
+df.median<-  summarise_if(df.median, is.numeric, median, na.rm = TRUE) 
+barbaries<-c("A. getulus", 1, 5, 221.1, 43.5, 66, 8.9, 2.9, 1, 344.8, 4.1)
+df.median.all<-rbind(df.median, barbaries)
+median_long <- gather(df.median.all, trait, value, NoLocs:RLy)
+median_long$value<-as.numeric(median_long$value)
+median_long <- median_long %>% 
+  mutate_if(is.numeric, round, digits = 1)
+df_median<-pivot_wider(median_long, names_from = trait, values_from = value ) %>% group_by(family)
+
+df_median$family<-as.factor(df_median$family)
+
+# set color and other parameters
+col.teal <- "#1f78b4" #use for crowds
+col.ltgn <- "#b2df8a" #use for sparse displace
+col.dkgn <- "#33a02c" #use for regular displace
+col.lttl <- "#a6cee3"
+col.dkrd <- "#ca0020"
+# "#D1E5F0" "#FDDBC7"
+
+#set color by group
+squirrels <- "#FF7F00"
+mammals <- "#377EB8"
+obs.vals <- "#4DAF4A" # "#E41A1C"
+species.col<- c("#377EB8", "#FF7F00", "#4DAF4A" )
+
+#Create a custom color scale for species
+library(RColorBrewer)
+myColors <- c("#377EB8","#FF7F00" ) 
+names(myColors) <- levels(df.cap$family)
+colScale <- scale_colour_manual(name = "family",values = myColors)
+
+graphics.off()
+dev.off()
+
+```
+
+
+ggplot
+```{r}
+
+
+# plot Nolocs
+plot.nolocs <- ggplot(df.cap, aes(x=NoLocs, col = family)) + 
+  geom_density(alpha=0.4) +
+  labs(y ="density" , x ="number of introductions") +
+  colScale +
+  theme_classic() +
+   geom_vline(data = df.median, aes(xintercept=NoLocs, color = family), 
+            linetype="dashed") +  # linetype="dashed", size=1 +
+  geom_vline(aes(xintercept=median(data_cap$LG[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
+             color=obs.vals, linetype="dashed", size=1)+
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+
+plot.nolocs
+
+# longevity
+plot.lg <- ggplot(df.cap, aes(x=LG, col = family)) + 
+  geom_density() +
+  labs(y ="" , x ="longevity (years)") +
+  colScale +
+  theme_classic() +
+   geom_vline(data = df.median, aes(xintercept=LG, color = family), 
+            linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=median(data_cap$LG[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
+            color=obs.vals, linetype="dashed", size=1)+
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+plot.lg
+
+# body mass
+plot.bm <- ggplot(df.cap, aes(x=BM, col = family)) + 
+  geom_density() +
+  labs(y ="" , x ="body mass (g)") +
+  colScale +
+  theme_classic() +
+  xlim(c(0,10000)) +
+  geom_vline(aes(xintercept=median(data_cap$BM[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
+            color=obs.vals, linetype="dashed", size=1) +
+  geom_vline(data = df.median, aes(xintercept=BM, color = family), 
+            linetype="dashed") +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+plot.bm
+
+# Neonatal body mass
+plot.nbm <- ggplot(df.cap, aes(x=NBM, col = family)) + 
+  geom_density() +
+  labs(y ="" , x ="neonatal body mass (g)") +
+  colScale +
+  theme_classic() +
+  xlim(c(0,150)) +
+  geom_vline(aes(xintercept=median(data_cap$NBM[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
+            color=obs.vals, linetype="dashed", size=1) +
+  geom_vline(data = df.median, aes(xintercept=NBM, color = family), 
+            linetype="dashed") +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+plot.nbm
+
+# litter size
+plot.ls <- ggplot(df.cap, aes(x=LS, col = family)) + 
+  geom_density() +
+  labs(y ="density" , x ="litter size") +
+  colScale +
+  theme_classic() +
+  geom_vline(aes(xintercept=median(data_cap$LS[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
+            color=obs.vals, linetype="dashed", size=1) +
+  geom_vline(data = df.median, aes(xintercept=LS, color = family), 
+            linetype="dashed", size=1) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+plot.ls
+
+
+# litters/year
+plot.ly <- ggplot(df.cap, aes(x=LY, col = family)) + 
+  geom_density() +
+  labs(y ="" , x ="litters/year") +
+  colScale +
+  theme_classic() +
+   geom_vline(data = df.median, aes(xintercept=LY, color = family), 
+            linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=data_cap$LY[data_cap$Binomial=="Atlantoxerus_getulus"]), # add squirrel line
+            color=obs.vals, linetype="dashed", size=1) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+ 
+plot.ly
+
+
+# age at first birth
+plot.afb <- ggplot(df.cap, aes(x=AFB, col = family)) + 
+  geom_density() +
+  labs(y ="density" , x ="age at first birth (days)") +
+  colScale +
+  theme_classic() +
+   geom_vline(data = df.median, aes(xintercept=AFB, color = family), 
+            linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=median(data_cap$AFB[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
+            color=obs.vals, linetype="dashed", size=1) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+plot.afb
+
+# gestation time
+plot.gt <- ggplot(df.cap, aes(x=GT, col = family)) + 
+  geom_density() +
+  labs(y ="density" , x ="gestation time (days)") +
+  colScale +
+  theme_classic() +
+   geom_vline(data = df.median, aes(xintercept=GT, color = family), 
+            linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=median(data_cap$GT[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
+            color=obs.vals, linetype="dashed", size=1) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+plot.gt
+
+
+# weaning age
+plot.wa <- ggplot(df.cap, aes(x=WA, col = family)) + 
+  geom_density() +
+  labs(y ="" , x ="weaning age (days)") +
+  colScale +
+  theme_classic() +
+  geom_vline(data = df.median, aes(xintercept=WA, color = family), 
+            linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=median(data_cap$WA[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
+            color=obs.vals, linetype="dashed", size=1) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+plot.wa
+
+
+# reproductive lifespan
+plot.rl <- ggplot(df.cap, aes(x=RLy, col = family)) + 
+  geom_density() +
+  labs(y ="" , x ="reproductive lifespan (years)") +
+  colScale +
+  theme_classic() +
+   geom_vline(data = df.median, aes(xintercept=RLy, color = family), 
+            linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=median(data_cap$RLy[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
+            color=obs.vals, linetype="dashed", size=1) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
+plot.rl
+
+
+plot.compare<-ggarrange(plot.nolocs,plot.lg,  plot.gt, plot.wa, plot.ls, plot.ly, plot.afb, plot.rl,
+                   common.legend = TRUE  , legend = "bottom",
+                   nrow = 4, ncol = 2, labels = "auto") #plot.nbm, plot.bm
+plot.compare
+ggexport(plot.compare, filename = "plot.compare.traits.pdf")
+
+
+
+```
+
+
+
+# AIM3: mcmcGLMM
+we examined whether number of founders and/or a fast life history influences invasion success of squirrels using the dataset provided by Bertolino (2009).
+
+Load libraries
+```{r setup, include=FALSE}
+library(TreeTools)
+library(tidyverse)
+library(ape)
+library(MCMCglmm)
+library(brms)
+library(phytools)
+sessionInfo()
+```
+
+## Import data
+```{r}
+sq_df<-read.csv("bertolino.csv", sep =";") %>%
+  filter(Founders!="NA") %>%
+  dplyr::select(-ref, -NBM)
+sq<-sq_df
+head(sq)
+
+sq$Intro<-as.factor(sq$Intro)
+sq$Est<-as.factor(sq$Est)
+sq$Spread<-as.factor(sq$Spread)
+sq$spread<-factor(sq$Spread, levels = c("0", "1"))
+
+
+# number of times each species is included
+#group_by(sq,  Binomial, Spread) %>%
+#  dplyr::summarise(n=n())
+#group_by(sq,  Binomial) %>%
+#  dplyr::summarise(n=n())
+
+# species names (to include in tree)
+species<-unique(sq$Binomial)
+species
+```
+
+## import phylogenetic tree
+
+We used the mammalian supertree from Rolland et al. 2014, see also Lukas & Clutton-brock 2020. 
+
+```{r}
+Rollandtree <- phytools::read.newick("Rolland et al tree.txt")
+#plot(Rollandtree)
+str(Rollandtree)
+tree<-Rollandtree
+```
+
+
+## Collinearity of variables
+Prepare data
+```{r}
+## Collinearity of the explanatory variables ----
+library(psych) #Calls: pairs.panels
+library(car) #Calls: vif
+library(plyr) #Calls: rbind.fill
+library(usdm)
+
+# global
+Z <- cbind(sq$Founders, sq$NoLocs, sq$LG, sq$BM, sq$GT, sq$WA ,
+           sq$LS , sq$LY , sq$AFB , sq$RL)
+colnames(Z) <- c("f", "nl", "lg","bm","gt","wa","ls","ly", "afb","rl")
+pairs.panels(Z) # Generate scatterplots with Pearson correlations
+dfz = data.frame(Z) # Data Frame with predictor variables
+vif(dfz) # VIF > 3
+
+Z <- cbind(sq$Founders, sq$NoLocs, sq$LG, sq$BM, sq$GT, sq$WA ,
+           sq$LS , sq$LY , sq$AFB)  
+colnames(Z) <- c("f", "nl", "lg","bm","gt","wa","ls","ly", "afb")
+pairs.panels(Z) # Generate scatterplots with Pearson correlations
+dfz = data.frame(Z) # Data Frame with predictor variables
+vif(dfz) # VIF > 3: remove rl
+
+Z <- cbind(sq$Founders, sq$NoLocs, sq$BM, sq$GT, sq$WA ,
+           sq$LS , sq$LY , sq$AFB)
+colnames(Z) <- c("f", "nl","bm","gt","wa","ls","ly", "afb")
+pairs.panels(Z) # Generate scatterplots with Pearson correlations
+dfz = data.frame(Z) # Data Frame with predictor variables
+vif(dfz) # VIF > 3: remove lg
+
+Z <- cbind(sq$Founders, sq$NoLocs, sq$GT, sq$WA ,
+           sq$LS , sq$LY , sq$AFB)
+colnames(Z) <- c("f", "nl","gt","wa","ls","ly", "afb")
+pairs.panels(Z) # Generate scatterplots with Pearson correlations
+dfz = data.frame(Z) # Data Frame with predictor variables
+vif(dfz) # VIF > 3: remove bm
+
+Z <- cbind(sq$Founders, sq$NoLocs, sq$WA ,
+           sq$LS , sq$LY , sq$AFB)
+colnames(Z) <- c("f", "nl","wa","ls","ly", "afb")
+pairs.panels(Z) # Generate scatterplots with Pearson correlations
+dfz = data.frame(Z) # Data Frame with predictor variables
+vif(dfz) # VIF > 3: remove gt
+
+Z <- cbind(sq$Founders, sq$WA ,
+           sq$LS , sq$LY , sq$AFB)
+colnames(Z) <- c("f", "wa","ls","ly", "afb")
+pairs.panels(Z) # Generate scatterplots with Pearson correlations
+dfz = data.frame(Z) # Data Frame with predictor variables
+vif(dfz) # VIF > 3: remove nolocs
+
+# check with dependent and random factor
+Z.all <- cbind(sq$Founders, sq$WA ,
+           sq$LS , sq$LY , sq$AFB, sq$spread, sq$Binomial)
+colnames(Z.all) <- c("f", "wa","ls","ly", "afb", "spread", "species")
+pairs.panels(Z.all) # Generate scatterplots with Pearson correlations
+dfz = data.frame(Z.all) 
+vif(dfz) # VIF > 3: removed ls
+
+Z.all <- cbind(sq$Founders, sq$WA ,
+               sq$LY , sq$AFB, sq$spread, sq$Binomial)
+colnames(Z.all) <- c("f", "wa","ly", "afb", "spread", "species")
+pairs.panels(Z.all) # Generate scatterplots with Pearson correlations
+dfz = data.frame(Z.all) 
+vif(dfz) # VIF > 3
+
+```
+
+
+
+Plot
+```{r}
+# plots
+sq$invasive<-factor(sq$spread, labels = c("no", "yes"))
+figA<- ggplot(sq, aes(x=factor(invasive), y=Founders)) + 
+  geom_boxplot() +
+  theme_classic() +
+  labs(x= "", y = "number of founders") #+
+  geom_point(aes(group = Binomial)) +
+  geom_line(aes(group = Binomial),
+            alpha = 0.5, colour = "darkgrey")
+  
+figB<- ggplot(sq, aes(x=factor(invasive), y=WA)) + 
+  geom_boxplot() +
+  theme_classic() +
+  labs(x= "", y = "weaning age (days)") 
+
+figC<- ggplot(sq, aes(x=factor(invasive), y=LY)) + 
+  geom_boxplot() +
+  theme_classic() +
+  labs(x= "invasive", y = "litters/year") 
+
+figD<- ggplot(sq, aes(x=factor(invasive), y=AFB)) + 
+  geom_boxplot() +
+  theme_classic() +
+  labs(x= "invasive", y = "age at first birth (days)")
+
+library(ggpubr) 
+plot.squirrels<-ggarrange(figA, figB, figC, figD, labels = "auto")
+ggexport(plot.squirrels, filename = "plot.squirrels.pdf")
+```
+
+
+## Phylogenetic mixed model
+
+standardize values
+```{r}
+
+st<-sq %>% mutate_if(is.numeric, scale)
+head(st)
+
+```
+
+
+Phylogenetic tree doesn't include "Callosciurus_erythreus" & "Sciurus_aberti",
+therefore exclude resulting in 11 species instead of 13 for our analysis. 
+
+```{r}
+st$Binomial<-as.factor(st$Binomial)
+unique(st$Binomial)
+st<- st %>% filter(!Binomial %in% c("Callosciurus_erythreus", "Sciurus_aberti")) %>% droplevels()
+unique(st$Binomial)
+
+
+```
+
+
+Only include the species that are present in Bertolino's dataset.
+```{r}
+pruned.tree<-drop.tip(Rollandtree, setdiff(Rollandtree$tip.label, species)) 
+str(pruned.tree)
+plot.phylo(pruned.tree)
+pruned.tree$tip.label
+```
+
+
+Reorder data according to tips
+```{r}
+species<-pruned.tree$tip.label
+st_tree_select<-dplyr::select(st, Phylo, Binomial,spread, Founders, WA, LY, AFB) 
+st_tree_select$Binomial
+
+traits<-  st_tree_select %>% arrange(factor(Binomial, levels = species))
+traits$Binomial
+```
+
+## repeated measures brms
+
+```{r}
+A <- ape::vcv.phylo(pruned.tree) # covariance matrix
+```
+
+```{r}
+# get mean of repeated measures
+st_select_mean<-traits
+st_select_mean$Binomial
+st_select_mean$mean_founders <- 
+  with(traits, sapply(split(Founders, Binomial), mean)[Binomial])
+st_select_mean$mean_WA <- 
+  with(traits, sapply(split(WA, Binomial), mean)[Binomial])
+#st_select_mean$mean_LS <- 
+#  with(traits, sapply(split(LS, Binomial), mean)[Binomial])
+st_select_mean$mean_LY <- 
+  with(traits, sapply(split(LY, Binomial), mean)[Binomial])
+st_select_mean$mean_AFB <- 
+  with(traits, sapply(split(AFB, Binomial), mean)[Binomial])
+st_select_mean$spread<-as.numeric(st_select_mean$spread)
+head(st_select_mean)
+```
+
+get prior
+```{r}
+get_prior(spread ~ mean_founders + mean_WA + mean_LY + mean_AFB + 
+            (1|gr(Binomial, cov = A))+ + (1|Phylo), 
+          data = st_select_mean, 
+          family = binomial())
+get_prior(spread ~ mean_founders + mean_WA + mean_LY + mean_AFB + 
+            (1|gr(Binomial, cov = A))+ + (1|Phylo), 
+          data = st_select_mean, 
+          family = bernoulli())
+```
+
+model
+```{r}
+## model
+model_repeat <- brm(
+  spread ~ mean_founders + mean_WA + mean_LY + mean_AFB + 
+    (1|gr(Binomial, cov = A))+ (1|Phylo), 
+  data = st_select_mean, 
+  family = bernoulli(), 
+  data2 = list(A = A),
+  prior = c(
+    prior(student_t(3, 0, 2.5))), 
+  sample_prior = TRUE, chains = 3, cores = 2, # results
+  iter = 10000, warmup = 1500,
+  control = list(adapt_delta = 0.99)
+)
+
+# checkout results: parameter settings
+#sample_prior = TRUE, chains = 2, cores = 2, # checkout results
+#  iter = 4000, warmup = 1000,
+#  control = list(adapt_delta = 0.99)
+
+
+pairs(model_repeat)
+summary(model_repeat, waic = TRUE)
+head(predict(model_repeat)) # predict responses based on the fitted model
+plot(conditional_effects(model_repeat), ask = FALSE) # plot conditional effects for each predictor
+
+# investigate model fit
+loo(model_repeat) 
+pp_check(model_repeat) 
+
+
+# get variables
+#get_variables(model_repeat)
+```
+
+
+
+## add variability of the independent variables (predictor) within species
+```{r}
+# as only founders change within species, we only have to add founders
+st_select_mean$within_founders <- st_select_mean$Founders - st_select_mean$mean_founders
+
+model_repeat_within <- brm(
+  spread ~ within_founders + mean_founders + mean_WA +  mean_LY + mean_AFB + 
+    (1|gr(Binomial, cov = A))+ (1|Phylo), 
+  data = st_select_mean, 
+  family = bernoulli(), 
+  data2 = list(A = A),
+  #prior = c(
+  #  prior(student_t(3, 0, 2.5))),
+  sample_prior = TRUE, chains = 3, cores = 2, #  results
+  iter = 10000, warmup = 1500,
+  control = list(adapt_delta = 0.999, max_treedepth = 15),
+  save_all_pars = TRUE
+) 
+
+ sample_prior = TRUE, chains = 2, cores = 2, # checkout results
+  iter = 4000, warmup = 1000,
+  control = list(adapt_delta = 0.99, max_treedepth = 15),
+  save_all_pars = TRUE
+
+# optional
+  sample_prior = TRUE, chains = 3, cores = 2, 
+  iter = 1500000, warmup = 500000, thin = 10,
+  control = list(adapt_delta = 0.999, max_treedepth = 15)
+)
+
+summary(model_repeat_within)
+plot(model_repeat_within)
+pairs(model_repeat_within)
+summary(model_repeat_within, waic = TRUE)
+head(predict(model_repeat_within)) # predict responses based on the fitted model
+plot(conditional_effects(model_repeat_within), ask = FALSE) # plot conditional effects for each predictor
+
+# investigate model fit
+loo(model_repeat_within) 
+pp_check(model_repeat_within) 
+```
+
+
+## model selection
+```{r}
+loo(model_repeat_within, model_repeat) # model repeat lowest looic
+loo_compare(model_repeat_within, model_repeat, criterion = "waic")
+waic(model_repeat_within, model_repeat) # loo better for the models
+```
+
+## plot posterior distribution
+```{r}
+plot.model<- plot(model_repeat)
+ggexport(plot.model, filename = "plot.phylogenetic.model.pdf")
+# geom_vline(x=0, linetype = "dashed")
+     #pars = "^b_", combo = c("dens", "trace")
+```
+
+
+## explanation model output
+Solutions for warning messages
+    - control = list(max_treedepth = 15) # <x> a positive integer  > default of 10
+    - control = list(adapt_delta = 0.99) # <x> > default of 0.8 (require 0<delta<1)
+    
+Rhat: If Rhat is considerably greater than 1 (i.e., > 1.1), the chains have not yet 
+converged and it is necessary to run more iterations and/or set stronger priors.
+
+(1|gr(Binomial, cov = A)) : accounts for phylogenetic relationship between species
+(1|Phylo) : accounts for any specific effect that would be independent of the phylogenetic relationship between species (e.g., environmental or niche effects).
+
+There is a significant effect when credibility interval does not contain 0. 
+
+Investigate model fit
+ - loo(model_repeat); leave-one-out cross-validation for direct numerical comparison of model fit, smaller values of loo indicate better fit
+ - pp_check(model_repeat); posterior predictive check.
