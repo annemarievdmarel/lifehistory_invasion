@@ -8,4 +8,5 @@ AIM 3: we examined whether number of founders and/or a fast life history influen
 
 The R code is provided in the Rmarkdown file "life history traits.Rmd".
 
-Registered by the CC BY-NC license. 
+DOi: 10.5281/zenodo.4136880 
+License: CC BY-NC license
