@@ -7,3 +7,5 @@ through a comparison of these traits to other successfully invaded mammals using
 AIM 3: we examined whether number of founders and/or a fast life history influences invasion success of squirrels using the dataset provided by Bertolino (2009).  
 
 The analyses are provided in the Rmarkdown file "life history traits.Rmd".
+
+You can use the work using the CC BY-NC license. 
