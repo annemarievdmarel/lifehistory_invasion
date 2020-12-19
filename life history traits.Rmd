@@ -6,6 +6,7 @@ output: pdf_document
 editor_options: 
   chunk_output_type: console
 ---
+[![DOI](https://zenodo.org/badge/307536780.svg)](https://zenodo.org/badge/latestdoi/307536780)
 
 Exploring the role of life history traits and introduction effort in understanding invasion success in mammals: A case study of Barbary ground squirrels
 Annemarie van der Marel a, Jane M. Waterman a, Marta López-Darias b 
@@ -34,6 +35,7 @@ library(MuMIn)
 library(piecewiseSEM)
 library(adephylo)
 library(beanplot)
+library(bayesplot)
 library(ggpubr)
 ```
 
@@ -301,6 +303,10 @@ ggsurvplot(fit1, data = s, pval = TRUE)
 # AIM 2: comparison life history traits to other mammals 
 
 Where do Barbaries fit with life history traits in comparison to other mammals?
+
+
+Have to adjust longevity of squirrels as max lifespan of squirrels in captivity was taken. 
+
 ```{r}
 # dataset Capellini et al. 2015 ----
 data_cap<-read.csv("cappelini.csv", sep = ";") # successfully spread mammals
@@ -312,6 +318,15 @@ df.cap<-data_cap_Ag
 df.cap$species <- factor(df.cap$family, levels= c("all","sciuridae"),
   labels = c("mammals", "only squirrels"))
 
+# change longevity from captivity to wild:
+df.cap$LG[df.cap$Binomial=="Sciurus_carolinensis"]<-12.5
+df.cap$LG[df.cap$Binomial=="Sciurus_vulgaris"]<-7
+df.cap$LG[df.cap$Binomial=="Tamias_sibiricus"]<-6
+
+df.cap$RLy[df.cap$Binomial=="Sciurus_carolinensis"]<-11.5
+df.cap$RLy[df.cap$Binomial=="Sciurus_vulgaris"]<-6.25
+df.cap$RLy[df.cap$Binomial=="Tamias_sibiricus"]<-5.04
+
 df.median<- df.cap %>% group_by(family)
 df.median<-  summarise_if(df.median, is.numeric, median, na.rm = TRUE) 
 barbaries<-c("A. getulus", 1, 5, 221.1, 43.5, 66, 8.9, 2.9, 1, 344.8, 4.1)
@@ -321,6 +336,11 @@ median_long$value<-as.numeric(median_long$value)
 median_long <- median_long %>% 
   mutate_if(is.numeric, round, digits = 1)
 df_median<-pivot_wider(median_long, names_from = trait, values_from = value ) %>% group_by(family)
+
+#LG_squirrels_wild<-c(5,17,12.5, 7, 6)
+#median(LG_squirrels_wild)
+#RLy_squirrels<-c(4.1, 16, 11.5, 6.25, 5)
+#median(RLy_squirrels)
 
 df_median$family<-as.factor(df_median$family)
 
@@ -361,7 +381,7 @@ plot.nolocs <- ggplot(df.cap, aes(x=NoLocs, col = family)) +
   colScale +
   theme_classic() +
    geom_vline(data = df.median, aes(xintercept=NoLocs, color = family), 
-            linetype="dashed") +  # linetype="dashed", size=1 +
+            linetype="dashed", size=1) +  # linetype="dashed", size=1 +
   geom_vline(aes(xintercept=median(data_cap$LG[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
              color=obs.vals, linetype="dashed", size=1)+
   scale_y_continuous(labels = scales::number_format(accuracy = 0.001))
@@ -384,10 +404,10 @@ plot.lg
 # body mass
 plot.bm <- ggplot(df.cap, aes(x=BM, col = family)) + 
   geom_density() +
-  labs(y ="" , x ="body mass (g)") +
+  labs(y ="" , x ="body mass") +
   colScale +
   theme_classic() +
-  xlim(c(0,10000)) +
+  xlim(c(0,7500)) +
   geom_vline(aes(xintercept=median(data_cap$BM[data_cap$Binomial=="Atlantoxerus_getulus"])), # add squirrel line
             color=obs.vals, linetype="dashed", size=1) +
   geom_vline(data = df.median, aes(xintercept=BM, color = family), 
@@ -505,7 +525,7 @@ ggexport(plot.compare, filename = "plot.compare.traits.pdf")
 
 
 
-# AIM3: mcmcGLMM
+# AIM 3: mcmcGLMM
 we examined whether number of founders and/or a fast life history influences invasion success of squirrels using the dataset provided by Bertolino (2009).
 
 Load libraries
@@ -630,32 +650,37 @@ vif(dfz) # VIF > 3
 Plot
 ```{r}
 # plots
-sq$invasive<-factor(sq$spread, labels = c("no", "yes"))
-figA<- ggplot(sq, aes(x=factor(invasive), y=Founders)) + 
+sq$invasive<-factor(sq$spread, labels = c("not invasive", "invasive"))
+figA<- ggplot(sq, aes(x=factor(invasive), y=log(Founders))) + 
   geom_boxplot() +
   theme_classic() +
-  labs(x= "", y = "number of founders") #+
+  labs(x= "", y = "log number of founders") +
+  theme(axis.text = element_text(size = 12)) #+
   geom_point(aes(group = Binomial)) +
   geom_line(aes(group = Binomial),
-            alpha = 0.5, colour = "darkgrey")
+            alpha = 0.5, colour = "darkgrey") 
   
 figB<- ggplot(sq, aes(x=factor(invasive), y=WA)) + 
   geom_boxplot() +
   theme_classic() +
-  labs(x= "", y = "weaning age (days)") 
+  labs(x= "", y = "weaning age (days)") +
+  theme(axis.text = element_text(size = 12))
 
 figC<- ggplot(sq, aes(x=factor(invasive), y=LY)) + 
   geom_boxplot() +
   theme_classic() +
-  labs(x= "invasive", y = "litters/year") 
+  labs(x= "", y = "litters/year") +
+  theme(axis.text = element_text(size = 12))
 
-figD<- ggplot(sq, aes(x=factor(invasive), y=AFB)) + 
+figD<- ggplot(sq, aes(x=factor(invasive), y=(AFB))) + 
   geom_boxplot() +
   theme_classic() +
-  labs(x= "invasive", y = "age at first birth (days)")
+  labs(x= "", y = "age at first birth (days)") +
+  theme(axis.text = element_text(size = 12))
 
 library(ggpubr) 
 plot.squirrels<-ggarrange(figA, figB, figC, figD, labels = "auto")
+plot.squirrels
 ggexport(plot.squirrels, filename = "plot.squirrels.pdf")
 ```
 
@@ -707,9 +732,7 @@ traits$Binomial
 
 ```{r}
 A <- ape::vcv.phylo(pruned.tree) # covariance matrix
-```
 
-```{r}
 # get mean of repeated measures
 st_select_mean<-traits
 st_select_mean$Binomial
@@ -796,17 +819,6 @@ model_repeat_within <- brm(
   save_all_pars = TRUE
 ) 
 
- sample_prior = TRUE, chains = 2, cores = 2, # checkout results
-  iter = 4000, warmup = 1000,
-  control = list(adapt_delta = 0.99, max_treedepth = 15),
-  save_all_pars = TRUE
-
-# optional
-  sample_prior = TRUE, chains = 3, cores = 2, 
-  iter = 1500000, warmup = 500000, thin = 10,
-  control = list(adapt_delta = 0.999, max_treedepth = 15)
-)
-
 summary(model_repeat_within)
 plot(model_repeat_within)
 pairs(model_repeat_within)
@@ -829,8 +841,26 @@ waic(model_repeat_within, model_repeat) # loo better for the models
 
 ## plot posterior distribution
 ```{r}
-plot.model<- plot(model_repeat)
-ggexport(plot.model, filename = "plot.phylogenetic.model.pdf")
+plot(model_repeat)
+
+library("bayesplot")
+citation("bayesplot")
+
+posterior <- as.array(model_repeat)
+dim(posterior)
+dimnames(posterior)
+
+color_scheme_set("red")
+mcmc_intervals(posterior)
+
+color_scheme_set("teal")
+post.plot<-mcmc_intervals(posterior, pars = c("b_Intercept", "b_mean_founders", "b_mean_WA", "b_mean_LY", "b_mean_AFB"),
+                          prob = 0.5, prob_outer=0.95,
+                          point_est="none")
+post.plot
+
+
+ggexport(post.plot, filename = "plot.phylo.model.pdf")
 # geom_vline(x=0, linetype = "dashed")
      #pars = "^b_", combo = c("dens", "trace")
 ```
@@ -852,3 +882,120 @@ There is a significant effect when credibility interval does not contain 0.
 Investigate model fit
  - loo(model_repeat); leave-one-out cross-validation for direct numerical comparison of model fit, smaller values of loo indicate better fit
  - pp_check(model_repeat); posterior predictive check.
+ 
+# Distribution plot
+Distribution map Barbary ground squirrels
+code help from https://ourcodingclub.github.io/tutorials/maps/
+```{r}
+# Load packages
+library(ggplot2)  # ggplot() fortify()
+library(dplyr)  # %>% select() filter() bind_rows()
+library(rgdal)  # readOGR() spTransform()
+library(raster)  # intersect()
+library(ggsn)  # north2() scalebar()
+library(rworldmap)  # getMap()
+library(ggpubr)
+library(viridis)
+install.packages("colourpicker")
+
+
+# Read shapefile downloaded from IUCN red list 
+shpdata_mammals <- readOGR(dsn = "IUCN Red List Mammals", 
+                           layer = "MAMMALS_TERRESTRIAL_ONLY")
+
+# Check CRS
+proj4string(shpdata_mammals)
+
+# check  shapefile
+str(shpdata_mammals@data)
+
+# only select Barbary ground squirrels "Atlantoxerus getulus"
+shpdata_aget<-subset(shpdata_mammals, binomial=="Atlantoxerus getulus")
+
+# Test plot 
+plot(shpdata_aget)
+str(shpdata_aget)
+
+# get world map
+world <- getMap(resolution = "low")
+
+# plot
+with_world <- ggplot() +
+  geom_polygon(data = world, 
+               aes(x = long, y = lat, group = group),
+               fill = NA, colour = alpha("black", 0.5)) + 
+  geom_polygon(data = shpdata_aget,  # Add and plot species data
+             aes(x = long, y = lat)) +
+  coord_quickmap() +  # Prevents stretching when resizing
+  theme_classic() +  # Remove ugly grey background
+  xlab("Longitude") +
+  ylab("Latitude") + 
+  guides(colour=guide_legend(title="Species"))
+with_world
+
+## crop world map
+crop_aget <- as(extent(-20, 2, 26, 38), "SpatialPolygons") 
+#extent(min_longitude, max_longitude, min_latitude, max_latitude).
+proj4string(crop_aget ) <- CRS(proj4string(world))
+world_clip <- raster::intersect(world, crop_aget) # intersect() to clip world by the area of the bounding box
+world_clip_f <- fortify(world_clip) # converts to a normal flat dataframe
+
+
+plot_aget <- ggplot() +
+  geom_polygon(data = world_clip_f, 
+               aes(x = long, y = lat, group = group),
+               fill = alpha("lightgrey", 0.5), colour = "black") + 
+  geom_polygon(data = shpdata_aget,  # Add and plot species data
+               aes(x = long, y = lat)) +
+  coord_quickmap() + 
+  #xlim(8, 35) +  # Set x axis limits, xlim(min, max)
+  # ylim(-35, -15) +  # Set y axis limits
+  theme_classic() +  # Remove ugly grey background
+  xlab("Longitude") +
+  ylab("Latitude") 
+plot_aget
+
+
+## different color invasive/native ranges
+str(shpdata_aget)
+str(shpdata_aget@data$origin) # 1 = native, 3 = introduced
+str(shpdata_aget@data$citation) # IUCN (International Union for Conservation of Nature)
+c("sandybrown", "darkseagreen") 
+
+summary(shpdata_aget@data)
+shpdata_aget@data$origin<-as.character(shpdata_aget@data$origin)
+summary(shpdata_aget@data)
+shp_df <- broom::tidy(shpdata_aget, region = "origin")
+lapply(shp_df, class)
+head(shp_df)
+shpdata_aget@data <- shpdata_aget@data %>% 
+  mutate(range = as.factor(ifelse(origin == "1", yes = "native", no="invasive")))
+shp_df <- broom::tidy(shpdata_aget, region = "range")
+head(shp_df)
+unique(shp_df$id)
+
+shp<-shpdata_aget
+shp@data <- shp@data %>% mutate(id = row.names(.))
+shp_df <- broom::tidy(shp, region = "id")
+shp_df <- shp_df %>% left_join(shp@data, by = c("id"="id"))
+
+map_aget <- ggplot() +
+  geom_polygon(data = world_clip_f, 
+               aes(x = long, y = lat, group = group),
+               fill = alpha("lightgrey", 0.5), colour = alpha("black", 0.5)) + 
+  geom_polygon(data = shp_df, 
+               aes(x = long, y = lat, group = group, fill = range), 
+               colour = alpha("black", 0.5)) +
+  scale_fill_manual(values = c("#56B4E9", "#E69F00") ) +
+ # scale_fill_viridis(discrete = TRUE) +
+  coord_quickmap() + 
+  #xlim(8, 35) +  # Set x axis limits, xlim(min, max)
+  # ylim(-35, -15) +  # Set y axis limits
+  theme_classic() +  # Remove ugly grey background
+  xlab("Longitude") +
+  ylab("Latitude")
+map_aget
+ggexport(map_aget, filename ="distribution plot.pdf")
+
+```
+
